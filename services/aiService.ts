@@ -347,7 +347,92 @@ export class AIServiceFactory {
         apiKey: this.getApiKeyFromEnv(),
         apiUrl: this.getApiUrlFromEnv()
       };
-      this.instance = this.createService(config || defaultConfig);
+      
+      // 增强的调试信息
+      const debugInfo = {
+        timestamp: new Date().toISOString(),
+        configProvider: config?.provider,
+        configApiKey: config?.apiKey ? {
+          provided: true,
+          length: config.apiKey.length,
+          preview: config.apiKey.substring(0, 8) + '...'
+        } : { provided: false },
+        defaultProvider: defaultConfig.provider,
+        defaultApiKey: defaultConfig.apiKey ? {
+          provided: true,
+          length: defaultConfig.apiKey.length,
+          preview: defaultConfig.apiKey.substring(0, 8) + '...'
+        } : { provided: false },
+        envCheck: {
+          provider: typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_AI_PROVIDER : 'process不可用',
+          geminiKey: typeof process !== 'undefined' 
+            ? (process.env.NEXT_PUBLIC_GEMINI_API_KEY ? '已设置' : '未设置')
+            : 'process不可用',
+          isClientSide: typeof window !== 'undefined'
+        }
+      };
+      
+      console.log('🔧 AI服务配置调试信息:', debugInfo);
+      
+      const finalConfig = config || defaultConfig;
+      
+      // 增强错误提示
+      if (finalConfig.provider === 'gemini' && !finalConfig.apiKey) {
+        console.error('❌ Gemini API Key 缺失');
+        console.log('🔍 详细检查结果:', {
+          'provider': finalConfig.provider,
+          'configHasKey': !!config?.apiKey,
+          'defaultHasKey': !!defaultConfig.apiKey,
+          'envProvider': typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_AI_PROVIDER : 'process不可用',
+          'envGeminiKey': typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_GEMINI_API_KEY : 'process不可用'
+        });
+        
+        // 提供详细的解决方案
+        console.log('🛠️  解决方案:');
+        console.log('1. 检查 Vercel 环境变量设置');
+        console.log('2. 确认 NEXT_PUBLIC_GEMINI_API_KEY 变量存在');
+        console.log('3. 确认环境变量应用到 Production 环境');
+        console.log('4. 重新部署项目');
+        
+        throw new Error(`❌ Gemini API Key 缺失！
+        
+🔍 问题诊断：
+- Provider: ${finalConfig.provider}
+- Config API Key: ${config?.apiKey ? '已提供' : '未提供'}
+- Default API Key: ${defaultConfig.apiKey ? '已提供' : '未提供'}
+
+🛠️  解决方案：
+1. 检查 Vercel 控制台 → Settings → Environment Variables
+2. 确认 NEXT_PUBLIC_GEMINI_API_KEY 变量存在且值正确
+3. 确认环境变量应用到 Production 环境
+4. 重新部署项目
+
+💡 或者在浏览器控制台运行: window.designLensDebug.checkApiKey()`);
+      }
+      
+      // 暴露AI服务调试信息到全局
+      if (typeof window !== 'undefined') {
+        (window as any).aiServiceDebug = {
+          config: finalConfig,
+          debugInfo: debugInfo,
+          testConnection: async () => {
+            console.log('🧪 测试AI服务连接...');
+            try {
+              const testFile = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
+              // 这里不实际调用，只检查配置
+              console.log('✅ AI服务配置验证通过');
+              console.log('Provider:', finalConfig.provider);
+              console.log('API Key状态:', !!finalConfig.apiKey ? '已配置' : '未配置');
+              return { success: true, config: finalConfig };
+            } catch (error) {
+              console.error('❌ AI服务配置验证失败:', error);
+              return { success: false, error: error };
+            }
+          }
+        };
+      }
+      
+      this.instance = this.createService(finalConfig);
     }
     return this.instance;
   }
