@@ -5,7 +5,7 @@
 
 export interface EnvironmentConfig {
   ai: {
-    provider: 'mock' | 'openai' | 'claude' | 'local';
+    provider: 'mock' | 'openai' | 'claude' | 'gemini' | 'local';
     apiKey?: string;
     apiUrl?: string;
   };
@@ -34,7 +34,21 @@ const getCurrentEnvironment = (): 'development' | 'staging' | 'production' => {
   return 'production';
 };
 
-// 环境配置
+// 根据AI提供商获取对应的API Key（移到前面定义）
+const getApiKeyByProvider = (provider: string): string | undefined => {
+  switch (provider) {
+    case 'gemini':
+      return process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    case 'claude':
+      return process.env.NEXT_PUBLIC_CLAUDE_API_KEY;
+    case 'openai':
+      return process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    default:
+      return undefined;
+  }
+};
+
+// 环境配置 - 修复版本
 const environmentConfigs: Record<string, EnvironmentConfig> = {
   development: {
     ai: {
@@ -55,7 +69,7 @@ const environmentConfigs: Record<string, EnvironmentConfig> = {
   staging: {
     ai: {
       provider: process.env.NEXT_PUBLIC_AI_PROVIDER as any || 'openai',
-      apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+      apiKey: getApiKeyByProvider(process.env.NEXT_PUBLIC_AI_PROVIDER || 'openai'),
       apiUrl: process.env.NEXT_PUBLIC_AI_API_URL
     },
     features: {
@@ -70,8 +84,8 @@ const environmentConfigs: Record<string, EnvironmentConfig> = {
   },
   production: {
     ai: {
-      provider: 'claude',
-      apiKey: process.env.NEXT_PUBLIC_CLAUDE_API_KEY,
+      provider: process.env.NEXT_PUBLIC_AI_PROVIDER as any || 'gemini',
+      apiKey: getApiKeyByProvider(process.env.NEXT_PUBLIC_AI_PROVIDER || 'gemini'),
       apiUrl: process.env.NEXT_PUBLIC_AI_API_URL
     },
     features: {
@@ -94,3 +108,6 @@ export const getEnvironmentConfig = (): EnvironmentConfig => {
 export const isProduction = () => getCurrentEnvironment() === 'production';
 export const isDevelopment = () => getCurrentEnvironment() === 'development';
 export const isStaging = () => getCurrentEnvironment() === 'staging';
+
+// 添加一个注释来触发 Git 检测 - 修复时间戳
+// Last modified: 2024-现在
