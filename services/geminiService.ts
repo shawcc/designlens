@@ -9,13 +9,16 @@ export class GeminiService implements AIAnalysisService {
   private apiKey: string;
   private apiUrl: string;
 
-  constructor(apiKey: string, apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent') {
+  constructor(apiKey: string, apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent') {
     this.apiKey = apiKey;
     this.apiUrl = `${apiUrl}?key=${apiKey}`;
   }
 
   async analyze(file: File): Promise<DiagnosisResult> {
     try {
+      // 记录 API 调用
+      console.log(`🔍 Gemini API 调用时间: ${new Date().toISOString()}`);
+      
       const base64Image = await this.fileToBase64(file);
       
       const response = await fetch(this.apiUrl, {
@@ -69,12 +72,40 @@ export class GeminiService implements AIAnalysisService {
       });
 
       if (!response.ok) {
-        throw new Error(`Gemini API 错误: ${response.status}`);
+        console.error('Gemini API 错误详情:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: this.apiUrl
+        });
+        
+        // 检查是否是配额限制错误
+        if (response.status === 429) {
+          throw new Error('API 调用配额已用完，请稍后再试或考虑升级');
+        }
+        if (response.status === 404) {
+          throw new Error('Gemini API 端点不存在，请检查API配置');
+        }
+        
+        const errorData = await response.text();
+        console.error('API 错误响应:', errorData);
+        throw new Error(`Gemini API 错误: ${response.status} - ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('✅ Gemini API 调用成功');
+      
       const content = data.candidates[0].content.parts[0].text;
-      const analysisResult = JSON.parse(content);
+      
+      // 尝试清理 JSON 内容（移除可能的 markdown 格式）
+      let cleanContent = content.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/```\s*$/, '');
+      }
+      if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```\s*/, '').replace(/```\s*$/, '');
+      }
+      
+      const analysisResult = JSON.parse(cleanContent);
 
       return {
         id: Date.now().toString(),
@@ -87,6 +118,9 @@ export class GeminiService implements AIAnalysisService {
 
     } catch (error) {
       console.error('Gemini 分析失败:', error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('AI 分析服务暂时不可用，请稍后重试');
     }
   }
